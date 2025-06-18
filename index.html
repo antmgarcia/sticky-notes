@@ -61,6 +61,7 @@
       border-radius: 50%;
       background: #e84118;
       position: absolute;
+      z-index: 10;
     }
 
     .cursor-label {
@@ -69,6 +70,7 @@
       align-items: center;
       gap: 5px;
       pointer-events: none;
+      z-index: 10;
     }
 
     .label {
@@ -120,7 +122,7 @@
 </head>
 <body>
   <div class="board">
-    <div class="note">
+    <div class="note note-initial">
       <textarea placeholder="Type anything, @mention anyone"></textarea>
     </div>
 
@@ -133,18 +135,22 @@
       <div class="arrow blue-arrow"></div>
       <div class="label blue">Product Owner</div>
     </div>
+
     <div class="cursor-label floatB" style="top: 75%; left: 15%;">
       <div class="arrow pink-arrow"></div>
       <div class="label pink">Dev team</div>
     </div>
+
     <div class="cursor-label floatC" style="top: 15%; left: 75%;">
       <div class="arrow purple-arrow"></div>
       <div class="label purple">Stakeholder</div>
     </div>
+
     <div class="cursor-label floatD" style="top: 50%; left: 80%;">
       <div class="arrow yellow-arrow"></div>
       <div class="label yellow">User</div>
     </div>
+
     <div class="cursor-label floatE" style="top: 70%; left: 60%;">
       <div class="arrow green-arrow"></div>
       <div class="label green">Antonio</div>
@@ -181,18 +187,20 @@
   }
 
   board.addEventListener("keydown", function (e) {
+    const activeNote = e.target.closest(".note");
+
     if (e.target.tagName === "TEXTAREA" && e.key === "Enter") {
       e.preventDefault();
 
-      const oldNote = e.target.closest(".note");
-      const newNote = oldNote.cloneNode(true);
+      const newNote = activeNote.cloneNode(true);
       newNote.querySelector("textarea").value = "";
 
       const offset = 30 + Math.random() * 30;
-      const rect = oldNote.getBoundingClientRect();
+      const rect = activeNote.getBoundingClientRect();
       newNote.style.top = `${rect.top + offset}px`;
       newNote.style.left = `${rect.left + offset}px`;
       newNote.style.transform = "none";
+      newNote.classList.remove("note-initial");
 
       colorIndex = (colorIndex + 1) % postItColors.length;
       newNote.style.background = postItColors[colorIndex];
@@ -203,6 +211,12 @@
       setTimeout(() => {
         newNote.querySelector("textarea").focus();
       }, 0);
+    }
+
+    if (e.target.tagName === "TEXTAREA" && e.key === "Backspace") {
+      if (!activeNote.classList.contains("note-initial") && e.target.value === "") {
+        activeNote.remove();
+      }
     }
   });
 
