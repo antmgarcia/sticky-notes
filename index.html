@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Artboard with Cursors</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collaborative Artboard</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       background: #F4F4F4;
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       height: 100%;
       overflow: hidden;
+      touch-action: none;
     }
 
     .board {
@@ -19,6 +21,11 @@
       height: 100vh;
       background-image: radial-gradient(#ccc 1px, transparent 1px);
       background-size: 20px 20px;
+      cursor: grab;
+    }
+
+    .board:active {
+      cursor: grabbing;
     }
 
     .note {
@@ -35,11 +42,22 @@
       align-items: center;
       justify-content: center;
       transition: box-shadow 0.3s ease, transform 0.3s ease;
+      cursor: move;
+      border-radius: 4px;
+      user-select: none;
     }
+
+
 
     .note:has(textarea:focus) {
       box-shadow: 6px 10px 25px rgba(0, 0, 0, 0.25);
       transform: translate(-50%, -52%);
+    }
+
+    .note.dragging {
+      z-index: 1000;
+      transform: rotate(2deg);
+      box-shadow: 8px 12px 30px rgba(0, 0, 0, 0.3);
     }
 
     .note textarea {
@@ -53,6 +71,13 @@
       color: #222;
       outline: none;
       padding: 0 12px;
+      font-family: inherit;
+      cursor: text;
+    }
+
+    .note textarea::placeholder {
+      color: #666;
+      opacity: 0.7;
     }
 
     .red-dot {
@@ -62,6 +87,11 @@
       background: #e84118;
       position: absolute;
       z-index: 10;
+      cursor: move;
+    }
+
+    .red-dot.dragging {
+      z-index: 1001;
     }
 
     .cursor-label {
@@ -77,8 +107,10 @@
       padding: 6px 12px;
       border-radius: 20px;
       font-size: 12px;
+      font-weight: 500;
       color: white;
       white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
 
     .arrow {
@@ -89,6 +121,7 @@
       border-bottom: 14px solid;
       transform: rotate(-45deg);
       margin-bottom: 24px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
 
     .blue { background: #007bff; }
@@ -100,7 +133,7 @@
     .purple { background: #a56cf1; }
     .purple-arrow { border-bottom-color: #a56cf1; }
 
-    .yellow { background: #fcd34d; color: black; }
+    .yellow { background: #fcd34d; color: #333; }
     .yellow-arrow { border-bottom-color: #fcd34d; }
 
     .green { background: #059669; }
@@ -110,26 +143,82 @@
     .floatB { animation: floatB 7s ease-in-out infinite; }
     .floatC { animation: floatC 5.5s ease-in-out infinite; }
     .floatD { animation: floatD 8s ease-in-out infinite; }
-    .floatE { animation: floatE 18.8s ease-in-out infinite; }
+    .floatE { animation: floatE 8.8s ease-in-out infinite; }
 
-    @keyframes floatA { 0%, 100% { transform: translateY(4); } 50% { transform: translateY(-26px); } }
-    @keyframes floatB { 0%, 100% { transform: translateX(-48px); } 50% { transform: translateY(-24px); } }
-    @keyframes floatC { 0%, 100% { transform: translateY(64px, 80px); } 50% { transform: translateY(24px); } }
-    @keyframes floatD { 0%, 100% { transform: translateY(-12); } 50% { transform: translate(14px, -24px); } }
-    @keyframes floatE { 0%, 100% { transform: translate(48px); } 50% { transform: translate(-12px, 32px); } }
+    @keyframes floatA { 
+      0%, 100% { transform: translateY(0px); } 
+      50% { transform: translateY(-26px); } 
+    }
+    @keyframes floatB { 
+      0%, 100% { transform: translateX(0px); } 
+      50% { transform: translate(-48px, -24px); } 
+    }
+    @keyframes floatC { 
+      0%, 100% { transform: translate(0px, 0px); } 
+      50% { transform: translateY(-24px); } 
+    }
+    @keyframes floatD { 
+      0%, 100% { transform: translateY(0px); } 
+      50% { transform: translate(14px, -24px); } 
+    }
+    @keyframes floatE { 
+      0%, 100% { transform: translateX(0px); } 
+      50% { transform: translate(-12px, 32px); } 
+    }
 
+
+
+    .instructions {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(10px);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #666;
+      max-width: 300px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .instructions h4 {
+      margin: 0 0 8px 0;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .instructions ul {
+      margin: 0;
+      padding-left: 16px;
+    }
+
+    .instructions li {
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .note {
+        width: 160px;
+        height: 160px;
+      }
+      
+      .instructions {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="board">
     <div class="note note-initial">
-      <textarea placeholder="Type anything, @mention anyone"></textarea>
+      <textarea placeholder="Type anything, @mention anyone" aria-label="Note content"></textarea>
     </div>
 
-    <div class="red-dot" style="top: 65%; left: 38%;"></div>
-    <div class="red-dot" style="top: 50%; left: 58%;"></div>
-    <div class="red-dot" style="top: 52%; left: 62%;"></div>
-    <div class="red-dot" style="top: 60%; left: 60%;"></div>
+    <div class="red-dot" style="top: 65%; left: 38%;" role="button" tabindex="0" aria-label="Draggable dot"></div>
+    <div class="red-dot" style="top: 50%; left: 58%;" role="button" tabindex="0" aria-label="Draggable dot"></div>
+    <div class="red-dot" style="top: 52%; left: 62%;" role="button" tabindex="0" aria-label="Draggable dot"></div>
+    <div class="red-dot" style="top: 60%; left: 60%;" role="button" tabindex="0" aria-label="Draggable dot"></div>
 
     <div class="cursor-label floatA" style="top: 20%; left: 20%;">
       <div class="arrow blue-arrow"></div>
@@ -157,71 +246,250 @@
     </div>
   </div>
 
+
+
+  <div class="instructions">
+    <h4>How to use:</h4>
+    <ul>
+      <li>Drag notes and dots around</li>
+      <li>Press Enter in a note to create a new one</li>
+      <li>Backspace on empty note to delete it</li>
+      <li>Use buttons to add notes or clear board</li>
+    </ul>
+  </div>
+
 <script>
   const board = document.querySelector(".board");
   const postItColors = ["#b2e9a2", "#ffeb8a", "#a8d5ff", "#ffd1dc", "#d4b5fd"];
   let colorIndex = 0;
+  let notes = [];
 
-  function makeDraggable(note) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    note.addEventListener("mousedown", (e) => {
-      if (e.target.tagName === "TEXTAREA") return;
-      isDragging = true;
-      offsetX = e.offsetX;
-      offsetY = e.offsetY;
-      note.style.zIndex = 1000;
-    });
-
-    document.addEventListener("mousemove", (e) => {
-      if (!isDragging) return;
-      note.style.left = `${e.clientX - offsetX}px`;
-      note.style.top = `${e.clientY - offsetY}px`;
-      note.style.transform = "none";
-    });
-
-    document.addEventListener("mouseup", () => {
-      isDragging = false;
+  // Save notes to Google Sheets
+  function sendNotesToServer(notes) {
+    fetch('https://script.google.com/macros/s/AKfycbyYSR3ilyUNnm5fOz4TnpbajJbw09BPAn_0f5HcJYQbJpHlIbvwH3XQMgINNFoXzmUk/exec', {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).catch(error => {
+      console.error('Error saving to server:', error);
     });
   }
 
-  board.addEventListener("keydown", function (e) {
-    const activeNote = e.target.closest(".note");
+  // Enhanced drag functionality with touch support
+  function makeDraggable(element) {
+    let isDragging = false;
+    let offsetX, offsetY;
+    let startX, startY;
 
-    if (e.target.tagName === "TEXTAREA" && e.key === "Enter") {
+    // Mouse events
+    element.addEventListener("mousedown", handleStart);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleEnd);
+
+    // Touch events
+    element.addEventListener("touchstart", handleStart, { passive: false });
+    document.addEventListener("touchmove", handleMove, { passive: false });
+    document.addEventListener("touchend", handleEnd);
+
+    function handleStart(e) {
+      if (e.target.tagName === "TEXTAREA") return;
+      
       e.preventDefault();
+      isDragging = true;
+      
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      const rect = element.getBoundingClientRect();
+      
+      offsetX = clientX - rect.left;
+      offsetY = clientY - rect.top;
+      startX = clientX;
+      startY = clientY;
+      
+      element.style.zIndex = 1000;
+      element.classList.add('dragging');
+    }
 
-      const newNote = activeNote.cloneNode(true);
-      newNote.querySelector("textarea").value = "";
+    function handleMove(e) {
+      if (!isDragging) return;
+      
+      e.preventDefault();
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      element.style.left = `${clientX - offsetX}px`;
+      element.style.top = `${clientY - offsetY}px`;
+      element.style.transform = "none";
+    }
 
-      const offset = 30 + Math.random() * 30;
-      const rect = activeNote.getBoundingClientRect();
-      newNote.style.top = `${rect.top + offset}px`;
-      newNote.style.left = `${rect.left + offset}px`;
-      newNote.style.transform = "none";
-      newNote.classList.remove("note-initial");
+    function handleEnd(e) {
+      if (!isDragging) return;
+      
+      isDragging = false;
+      element.classList.remove('dragging');
+      element.style.zIndex = '';
+      
+      // Save state if it's a note
+      if (element.classList.contains('note')) {
+        saveNotesState();
+      }
+    }
+  }
 
+  // Create new note
+  function createNote(x, y, content = "", background = null) {
+    const newNote = document.createElement('div');
+    newNote.className = 'note';
+    newNote.innerHTML = '<textarea placeholder="Type anything, @mention anyone" aria-label="Note content"></textarea>';
+    
+    if (background) {
+      newNote.style.background = background;
+    } else {
       colorIndex = (colorIndex + 1) % postItColors.length;
       newNote.style.background = postItColors[colorIndex];
+    }
+    
+    newNote.style.left = `${x}px`;
+    newNote.style.top = `${y}px`;
+    newNote.style.transform = "none";
+    
+    if (content) {
+      newNote.querySelector('textarea').value = content;
+    }
+    
+    board.appendChild(newNote);
+    makeDraggable(newNote);
+    
+    return newNote;
+  }
 
-      board.appendChild(newNote);
-      makeDraggable(newNote);
+  // Add random note
+  function addRandomNote() {
+    const x = Math.random() * (window.innerWidth - 220) + 10;
+    const y = Math.random() * (window.innerHeight - 220) + 10;
+    const newNote = createNote(x, y);
+    
+    setTimeout(() => {
+      newNote.querySelector("textarea").focus();
+    }, 100);
+    
+    saveNotesState();
+  }
+
+  // Clear all notes except the initial one
+  function clearBoard() {
+    if (confirm('Are you sure you want to clear all notes?')) {
+      document.querySelectorAll('.note:not(.note-initial)').forEach(note => note.remove());
+      const initialNote = document.querySelector('.note-initial');
+      initialNote.querySelector('textarea').value = '';
+      colorIndex = 0;
+      saveNotesState();
+    }
+  }
+
+  // Save notes state to memory and server
+  function saveNotesState() {
+    notes = Array.from(document.querySelectorAll('.note')).map(note => ({
+      content: note.querySelector('textarea').value,
+      left: note.style.left,
+      top: note.style.top,
+      background: note.style.background || getComputedStyle(note).background,
+      isInitial: note.classList.contains('note-initial'),
+      timestamp: new Date().toISOString()
+    }));
+    
+    // Filter out empty notes for server save
+    const notesWithContent = notes.filter(note => note.content.trim() !== '');
+    if (notesWithContent.length > 0) {
+      sendNotesToServer(notesWithContent);
+    }
+  }
+
+  // Keyboard events
+  board.addEventListener("keydown", function (e) {
+    const activeNote = e.target.closest(".note");
+    if (!activeNote) return;
+
+    if (e.target.tagName === "TEXTAREA" && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+
+      // Save current note content before creating new one
+      const currentContent = e.target.value.trim();
+      if (currentContent) {
+        // Send current note to server immediately
+        const currentNoteData = {
+          content: currentContent,
+          left: activeNote.style.left,
+          top: activeNote.style.top,
+          background: activeNote.style.background || getComputedStyle(activeNote).background,
+          isInitial: activeNote.classList.contains('note-initial'),
+          timestamp: new Date().toISOString()
+        };
+        sendNotesToServer([currentNoteData]);
+      }
+
+      const rect = activeNote.getBoundingClientRect();
+      const offset = 30 + Math.random() * 30;
+      const newNote = createNote(
+        rect.left + offset,
+        rect.top + offset
+      );
 
       setTimeout(() => {
         newNote.querySelector("textarea").focus();
-      }, 0);
+      }, 100);
+
+      saveNotesState();
     }
 
     if (e.target.tagName === "TEXTAREA" && e.key === "Backspace") {
       if (!activeNote.classList.contains("note-initial") && e.target.value === "") {
         activeNote.remove();
+        saveNotesState();
       }
     }
   });
 
-  makeDraggable(document.querySelector(".note"));
-  document.querySelectorAll(".red-dot").forEach(makeDraggable);
+  // Auto-save on content change
+  board.addEventListener('input', function(e) {
+    if (e.target.tagName === 'TEXTAREA') {
+      setTimeout(saveNotesState, 300); // Debounced save
+    }
+  });
+
+  // Initialize draggable elements
+  document.addEventListener('DOMContentLoaded', function() {
+    makeDraggable(document.querySelector(".note"));
+    document.querySelectorAll(".red-dot").forEach(makeDraggable);
+    
+    // Initial state save
+    saveNotesState();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+      switch(e.key) {
+        case 'n':
+          e.preventDefault();
+          addRandomNote();
+          break;
+        case 'k':
+          e.preventDefault();
+          clearBoard();
+          break;
+      }
+    }
+  });
+
+  // Prevent context menu on long press for mobile
+  document.addEventListener('contextmenu', function(e) {
+    if (e.target.closest('.note') || e.target.closest('.red-dot')) {
+      e.preventDefault();
+    }
+  });
 </script>
 </body>
 </html>
