@@ -266,7 +266,7 @@
 
   // Save notes to Google Sheets
   function sendNotesToServer(notes) {
-    fetch('https://script.google.com/macros/s/AKfycbyYSR3ilyUNnm5fOz4TnpbajJbw09BPAn_0f5HcJYQbJpHlIbvwH3XQMgINNFoXzmUk/exec', {
+    fetch('https://script.google.com/macros/s/AKfycbzqRDRcOIzK6mYuMgx5Py99wDbvfy44fhuyH130A9EDUMzkGru0E7PCkqSmiIckAX9a/exec', {
       method: 'POST',
       body: JSON.stringify({ notes }),
       headers: {
