@@ -21,11 +21,11 @@
       height: 100vh;
       background-image: radial-gradient(#ccc 1px, transparent 1px);
       background-size: 20px 20px;
-      cursor: grab;
+      cursor: none;
     }
 
     .board:active {
-      cursor: grabbing;
+      cursor: none;
     }
 
     .note {
@@ -46,8 +46,6 @@
       border-radius: 4px;
       user-select: none;
     }
-
-
 
     .note:has(textarea:focus) {
       box-shadow: 6px 10px 25px rgba(0, 0, 0, 0.25);
@@ -87,7 +85,7 @@
       background: #e84118;
       position: absolute;
       z-index: 10;
-      cursor: move;
+      cursor: none;
     }
 
     .red-dot.dragging {
@@ -205,7 +203,12 @@
     </div>
   </div>
 
+  <div class="status-indicator" id="statusIndicator">Ready</div>
 
+  <div class="debug-panel" id="debugPanel">
+    <h4>Debug Log (Press D to toggle)</h4>
+    <div id="debugLog"></div>
+  </div>
 
   <div class="instructions">
     <h4>How to use:</h4>
@@ -213,27 +216,93 @@
       <li>Drag notes and dots around</li>
       <li>Press Enter in a note to create a new one</li>
       <li>Backspace on empty note to delete it</li>
-      <li>Use buttons to add notes or clear board</li>
+      <li>Notes auto-save to Google Sheets</li>
     </ul>
   </div>
 
 <script>
   const board = document.querySelector(".board");
+  const statusIndicator = document.getElementById("statusIndicator");
+  const debugPanel = document.getElementById("debugPanel");
+  const debugLog = document.getElementById("debugLog");
   const postItColors = ["#b2e9a2", "#ffeb8a", "#a8d5ff", "#ffd1dc", "#d4b5fd"];
   let colorIndex = 0;
   let notes = [];
+  let saveTimeout;
 
-  // Save notes to Google Sheets
-  function sendNotesToServer(notes) {
-    fetch('https://script.google.com/macros/s/AKfycbwYnrr8nzTzCz3PZrT9ulaTI2GThYnj_AcMvxRHVb0zBb5UtOTn3_cOyyO-Qumy83sx/exec', {
-      method: 'POST',
-      body: JSON.stringify({ notes }),
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }).catch(error => {
+  // Debug logging function
+  function debugMessage(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = document.createElement('div');
+    logEntry.textContent = `${timestamp}: ${message}`;
+    debugLog.appendChild(logEntry);
+    debugLog.scrollTop = debugLog.scrollHeight;
+    console.log(`DEBUG: ${message}`);
+  }
+
+  // Your Google Apps Script URL - updated with correct URL
+  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYnrr8nzTzCz3PZrT9ulaTI2GThYnj_AcMvxRHVb0zBb5UtOTn3_cOyyO-Qumy83sx/exec';
+
+  // Update status indicator
+  function updateStatus(status, message) {
+    statusIndicator.textContent = message;
+    statusIndicator.className = `status-indicator ${status}`;
+    
+    if (status === 'saving' || status === 'success') {
+      setTimeout(() => {
+        if (statusIndicator.classList.contains(status)) {
+          statusIndicator.textContent = 'Ready';
+          statusIndicator.className = 'status-indicator';
+        }
+      }, 2000);
+    }
+  }
+
+  // Enhanced save function with better error handling
+  async function sendNotesToServer(notes) {
+    if (!notes || notes.length === 0) {
+      debugMessage('No notes to save');
+      return;
+    }
+
+    debugMessage(`Attempting to save ${notes.length} notes`);
+    updateStatus('saving', 'Saving...');
+    
+    try {
+      const payload = { 
+        action: 'saveNotes',
+        notes: notes,
+        timestamp: new Date().toISOString()
+      };
+      
+      debugMessage(`Payload: ${JSON.stringify(payload, null, 2)}`);
+      debugMessage(`Sending to: ${GOOGLE_SCRIPT_URL}`);
+      
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors', // Important for Google Apps Script
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      // Note: With no-cors mode, we can't read the response
+      // but the request will still go through
+      debugMessage('Request sent successfully (no-cors mode)');
+      updateStatus('success', 'Saved!');
+      
+    } catch (error) {
+      debugMessage(`Error: ${error.message}`);
       console.error('Error saving to server:', error);
-    });
+      updateStatus('error', 'Save failed');
+      
+      // Retry once after a delay
+      setTimeout(() => {
+        debugMessage('Retrying save...');
+        sendNotesToServer(notes);
+      }, 3000);
+    }
   }
 
   // Enhanced drag functionality with touch support
@@ -292,7 +361,7 @@
       
       // Save state if it's a note
       if (element.classList.contains('note')) {
-        saveNotesState();
+        debouncedSave();
       }
     }
   }
@@ -334,7 +403,7 @@
       newNote.querySelector("textarea").focus();
     }, 100);
     
-    saveNotesState();
+    debouncedSave();
   }
 
   // Clear all notes except the initial one
@@ -344,25 +413,45 @@
       const initialNote = document.querySelector('.note-initial');
       initialNote.querySelector('textarea').value = '';
       colorIndex = 0;
-      saveNotesState();
+      debouncedSave();
     }
+  }
+
+  // Debounced save function
+  function debouncedSave() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      saveNotesState();
+    }, 1000); // Wait 1 second after last change
   }
 
   // Save notes state to memory and server
   function saveNotesState() {
-    notes = Array.from(document.querySelectorAll('.note')).map(note => ({
-      content: note.querySelector('textarea').value,
-      left: note.style.left,
-      top: note.style.top,
-      background: note.style.background || getComputedStyle(note).background,
-      isInitial: note.classList.contains('note-initial'),
-      timestamp: new Date().toISOString()
-    }));
+    notes = Array.from(document.querySelectorAll('.note')).map((note, index) => {
+      const rect = note.getBoundingClientRect();
+      return {
+        id: `note-${index}-${Date.now()}`,
+        content: note.querySelector('textarea').value,
+        left: note.style.left || `${rect.left}px`,
+        top: note.style.top || `${rect.top}px`,
+        background: note.style.background || getComputedStyle(note).background,
+        isInitial: note.classList.contains('note-initial'),
+        timestamp: new Date().toISOString(),
+        position: {
+          x: parseInt(note.style.left) || rect.left,
+          y: parseInt(note.style.top) || rect.top
+        }
+      };
+    });
     
     // Filter out empty notes for server save
     const notesWithContent = notes.filter(note => note.content.trim() !== '');
+    debugMessage(`Found ${notes.length} total notes, ${notesWithContent.length} with content`);
+    
     if (notesWithContent.length > 0) {
       sendNotesToServer(notesWithContent);
+    } else {
+      debugMessage('No notes with content to save');
     }
   }
 
@@ -377,16 +466,7 @@
       // Save current note content before creating new one
       const currentContent = e.target.value.trim();
       if (currentContent) {
-        // Send current note to server immediately
-        const currentNoteData = {
-          content: currentContent,
-          left: activeNote.style.left,
-          top: activeNote.style.top,
-          background: activeNote.style.background || getComputedStyle(activeNote).background,
-          isInitial: activeNote.classList.contains('note-initial'),
-          timestamp: new Date().toISOString()
-        };
-        sendNotesToServer([currentNoteData]);
+        debouncedSave();
       }
 
       const rect = activeNote.getBoundingClientRect();
@@ -400,35 +480,46 @@
         newNote.querySelector("textarea").focus();
       }, 100);
 
-      saveNotesState();
+      debouncedSave();
     }
 
     if (e.target.tagName === "TEXTAREA" && e.key === "Backspace") {
       if (!activeNote.classList.contains("note-initial") && e.target.value === "") {
         activeNote.remove();
-        saveNotesState();
+        debouncedSave();
       }
     }
   });
 
-  // Auto-save on content change
+  // Auto-save on content change with debouncing
   board.addEventListener('input', function(e) {
     if (e.target.tagName === 'TEXTAREA') {
-      setTimeout(saveNotesState, 300); // Debounced save
+      debouncedSave();
     }
   });
 
   // Initialize draggable elements
   document.addEventListener('DOMContentLoaded', function() {
+    debugMessage('App initialized');
     makeDraggable(document.querySelector(".note"));
     document.querySelectorAll(".red-dot").forEach(makeDraggable);
     
     // Initial state save
-    saveNotesState();
+    setTimeout(() => {
+      debugMessage('Running initial save...');
+      saveNotesState();
+    }, 1000);
   });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', function(e) {
+    // Toggle debug panel
+    if (e.key.toLowerCase() === 'd' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+      e.preventDefault();
+      debugPanel.classList.toggle('show');
+      return;
+    }
+    
     if (e.ctrlKey || e.metaKey) {
       switch(e.key) {
         case 'n':
@@ -447,6 +538,23 @@
   document.addEventListener('contextmenu', function(e) {
     if (e.target.closest('.note') || e.target.closest('.red-dot')) {
       e.preventDefault();
+    }
+  });
+
+  // Test connection button (for debugging)
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'T' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+      e.preventDefault();
+      // Add a test note for debugging
+      const testNote = {
+        id: 'test-' + Date.now(),
+        content: 'Test note - ' + new Date().toLocaleString(),
+        timestamp: new Date().toISOString(),
+        position: { x: 100, y: 100 },
+        background: '#ffeb8a'
+      };
+      debugMessage('Sending test note manually');
+      sendNotesToServer([testNote]);
     }
   });
 </script>
